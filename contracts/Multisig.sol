@@ -3,11 +3,18 @@ pragma solidity ^0.4.4;
 contract Multisig {
 
 
-  struct stagedTx {
+  struct multiTx {
     uint8 regionID;
     address localrep;
     address receiver; 
-    address approvedBy; 
+    uint256 amount;
+    address approvedBy; //0x0 if not approved yet 
+  }
+
+  struct region {
+    uint8 regionID; 
+    mapping(address => bool) reps;
+    uint256 allowance;
   }
  
   bool isAlive = true;
@@ -16,8 +23,9 @@ contract Multisig {
   
   mapping(address => bool) benGlobalReps; // address exists or not. 0 if doesn't exist, 1 if it does
   mapping(uint8 => mapping(address => bool)) regionReps; //regionID => (address => approved/not for that region)
-  mapping(uint256 => stagedTx) transactions;
-
+  mapping(uint256 => multiTx) map_transactions;
+  multiTx[] array_tx; 
+  
 ////Events
   event Deposit(address indexed from, uint value);
 ////Modifiers
@@ -51,12 +59,14 @@ contract Multisig {
   }
   // BEN Global Reps
   /////////////////////////////////////////////////////////////// 
-  function addLocalRep(uint _regionID, address _localRep) onlyBENGlobal returns(bool success){
-    
+  function addLocalRep(uint8 _regionID, address _localRep) onlyBENGlobal returns(bool success){
+    regionReps[_regionID][_localRep] = true;
+    return true;
   }
   
   function addBenGlobal(address _beng) onlyBENGlobal returns(bool success){
-    //TODO
+    benGlobalReps[_beng] = true;
+    return true;
   }
   
   function approveTx(uint8 _txID) onlyBENGlobal returns (bool success){
@@ -69,7 +79,7 @@ contract Multisig {
   ////////////////////////////////////////////////////////////////////
   //Region Reps
   function stageTx(address _reciever) returns(bool success){
-    //TODO
+
   }
 
 }
