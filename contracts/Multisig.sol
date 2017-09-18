@@ -32,6 +32,7 @@ contract Multisig {
   event RegionAdded (address indexed _benG, uint indexed _regIDX, bytes32 _tag);
   event RepAdded    (address indexed _benG, uint indexed _regIDX, address _repAddr);
   event TxAdded     (uint indexed _txID, uint indexed _regIDX, address indexed _repAddr);
+  event TxCleared   (address _benG, uint _txClearedCount)
 ////Modifiers
   modifier isRep(uint _regIDX){
     require(regions[_regIDX].reps[msg.sender] == true);
@@ -103,4 +104,11 @@ contract Multisig {
   }
   function getRegionTag   (uint idx)  constant returns (bytes32)  { return regions[idx].tag;    }
   function getRegionSpent (uint idx)  constant returns (uint256)  { return regions[idx].spent;  }
+  function getRegionAllowance (uint idx) constant returns (uint256) { return regions[idx].allowance }
+  function clearTx () isRep(0) constant returns (uint) {
+    uint totalTx = transactions.length;
+    transactions = [];
+    TxCleared(msg.sender, totalTx);
+    return transactions.length;
+  }
 }  
