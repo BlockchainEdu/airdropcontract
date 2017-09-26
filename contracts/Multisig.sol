@@ -23,22 +23,27 @@ contract Multisig {
   bool isAlive = true;  // determines if the contract is alive/accepting funds or not
   address creator;      // 0xfd5e7D9B422b12022d1488710AA7a1d2F40bA0C4; //benglobal metamask 
 
-  Region[] regions;     //list of regions. keys (int idx) useful to find all regions/do analytics on data
-  MultiTx[] transactions;     //no good way to garbage collect list removals, so both approved and staged tx exist in one array
-                        //for quicker analytics use the EVENTS stream to find txs created and approved
+  Region[] regions;       //list of regions. keys (int idx) useful to find all regions/do analytics on data
+  MultiTx[] transactions; //no good way to garbage collect list removals, so both approved and staged tx exist in one array
+                          //for quicker analytics use the EVENTS stream to find txs created and approved
 
 ////Events
   event Deposit     (address indexed from,  uint value);
   event RegionAdded (address indexed _benG, uint indexed _regIDX, bytes32 _tag);
   event RepAdded    (address indexed _benG, uint indexed _regIDX, address _repAddr);
   event TxAdded     (uint indexed _txID, uint indexed _regIDX, address indexed _repAddr);
-  event TxCleared   (address _benG, uint _txClearedCount)
+  event TxCleared   (address _benG, uint _txClearedCount);
 ////Modifiers
   modifier isRep(uint _regIDX){
     require(regions[_regIDX].reps[msg.sender] == true);
     _;
   }
+  modifier isInAllowance(uint _regIDX, uint _amt){
+    require(regions[_regIDX].allowance > (regions[_regIDX].spent + _amt));
+    _;
+  }
 
+  
 ////Functions
   //Set Creator, Push BENG Chapter to regions, add msg.sender to beng reps
   function Multisig(){
@@ -84,12 +89,18 @@ contract Multisig {
     RepAdded(msg.sender, _regionID, _localRep);
     return true;
   }
-  //function approveTx(uint _txID)  isRep(0)  returns (bool success){}
+  function approveTx(uint _txID)  isRep(0)  returns (bool success){
+    if(transactions[_txID].amount < this.balance){
+
+    }
+  }
   //function rejectTx(uint _txID) isRep(0)  returns (bool success){}
 
   ////////////////////////////////////////////////////////////////////
   // open functions
   function stageTx(uint _regIDX, address _rec, uint256 _amtInWei) isRep(_regIDX) returns(uint _txID){
+    //modifiers: make sure that the rep is authorized, make sure amount is within thier alloance, and we still have that $ in our contract
+
     _txID = transactions.length;
     transactions.push(MultiTx({
       idx: _txID,
@@ -104,10 +115,10 @@ contract Multisig {
   }
   function getRegionTag   (uint idx)  constant returns (bytes32)  { return regions[idx].tag;    }
   function getRegionSpent (uint idx)  constant returns (uint256)  { return regions[idx].spent;  }
-  function getRegionAllowance (uint idx) constant returns (uint256) { return regions[idx].allowance }
+  function getRegionAllowance (uint idx) constant returns (uint256) { return regions[idx].allowance; }
   function clearTx () isRep(0) constant returns (uint) {
     uint totalTx = transactions.length;
-    transactions = [];
+    delete transactions;  //sets tx = []
     TxCleared(msg.sender, totalTx);
     return transactions.length;
   }
