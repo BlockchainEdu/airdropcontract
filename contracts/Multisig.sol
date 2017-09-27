@@ -29,10 +29,11 @@ contract Multisig {
 
 ////Events
   event Deposit     (address indexed from,  uint value);
-  event RegionAdded (address indexed _benG, uint indexed _regIDX, bytes32 _tag);
-  event RepAdded    (address indexed _benG, uint indexed _regIDX, address _repAddr);
+  event RegionAdded (address indexed addedBy, uint indexed _regIDX, bytes32 _tag);
+  event RepAdded    (address indexed addedBy, uint indexed _regIDX, address _repAddr);
   event TxAdded     (uint indexed _txID, uint indexed _regIDX, address indexed _repAddr);
   event TxApproved  (uint indexed _txID, uint amount, address indexed receiver, address indexed approvedBy);
+  event TxReject    (uint indexed _txID, address indexed rejectedBy);
   event TxCleared   (address _benG, uint _txClearedCount);
 ////Modifiers
   modifier isRep(uint _regIDX){
@@ -101,12 +102,18 @@ contract Multisig {
     RepAdded(msg.sender, _regionID, _localRep);
     return true;
   }
-  function approve(uint _txID)  isRep(0)  returns (bool success){
+  function approve(uint _txID)  isRep(0)  returns (bool){
       if(transactions[_txID].idx == 0) {revert();}
       transactions[_txID].receiver.transfer(transactions[_txID].amount); //if this fails than the tx should remain pending, so the following code should not execute
       transactions[_txID].approvedBy = msg.sender;
-      TxApproved(_txID, uint transactions[_txID].amount, transactions[_txID].receiver, msg.sender);
+      TxApproved(_txID, transactions[_txID].amount, transactions[_txID].receiver, msg.sender);
       return true;
+  }
+  function reject(uint _txID) isRep(0) returns (bool) {
+    if(transactions[_txID].approvedBy != 0x0) {revert();} //can't reject an already approved transaction
+    transactions[_txID].idx = 0; //0 idx is for rejected transactions. 
+    TxReject(_txID, msg.sender);
+    return true; //was successful
   }
   //function rejectTx(uint _txID) isRep(0)  returns (bool success){}
 
