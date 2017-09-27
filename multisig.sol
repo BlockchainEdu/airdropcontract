@@ -1,4 +1,4 @@
-pragma solidity ^0.4.4;
+pragma solidity ^0.4.17;
 
 contract Multisig {
 
@@ -48,7 +48,7 @@ contract Multisig {
   
 ////Functions
   //Set Creator, Push BENG Chapter to regions, add msg.sender to beng reps
-  function Multisig(){
+ function Multisig() public {
     creator = msg.sender; //set owner to whoever created the contract. used to widraw funds
     regions.push(Region({
       idx : 0,                 //should use regions.length but this is more clear and regions should be [] during initalization
@@ -71,12 +71,12 @@ contract Multisig {
   }
 
   // Fallback function serves as a deposit function, logs deposit address and amount
-  function () payable {
+  function () external payable {
     if(!isAlive) revert(); //allows to 'kill' the contract
     Deposit(msg.sender, msg.value);
   }
 
-  function killContract(){
+  function killContract() public{
     if(msg.sender != creator) revert(); //only owner can disable
     if(this.balance > 0) revert();      //can't disable if money still in contract
     isAlive = false;
@@ -84,7 +84,7 @@ contract Multisig {
 
   // BEN Global Reps Functions, modifier makes sure msg.sender is in benG approved reps
   /////////////////////////////////////////////////////////////// 
-  function addRegion(bytes32 _tag, uint256 _weiAllowance) isRep(0)  returns (uint _regIDX){
+  function addRegion(bytes32 _tag, uint256 _weiAllowance) public isRep(0)  returns (uint _regIDX){
     _regIDX = regions.length;
     regions.push(Region({
       //reps(addr>bool) mapping and spent=0 init'd to defaults automatically
@@ -96,20 +96,20 @@ contract Multisig {
     RegionAdded(msg.sender, regions.length, _tag);
     return _regIDX;
   }
-  function addRep(uint _regionID, address _localRep)  isRep(0)  returns (bool){
+  function addRep(uint _regionID, address _localRep) public isRep(0)  returns (bool){
     //only allow adding a local rep if msg.sender is a BENG rep
     regions[_regionID].reps[_localRep] = true;
     RepAdded(msg.sender, _regionID, _localRep);
     return true;
   }
-  function approve(uint _txID)  isRep(0)  returns (bool){
-      if(transactions[_txID].idx == 0) {revert();}
+  function approve(uint _txID) public isRep(0)  returns (bool){
+      if(transactions[_txID].idx == 0 && transactions[_txID].approvedBy != 0x0) {revert();}
       transactions[_txID].receiver.transfer(transactions[_txID].amount); //if this fails than the tx should remain pending, so the following code should not execute
       transactions[_txID].approvedBy = msg.sender;
       TxApproved(_txID, transactions[_txID].amount, transactions[_txID].receiver, msg.sender);
       return true;
   }
-  function reject(uint _txID) isRep(0) returns (bool) {
+  function reject(uint _txID) public isRep(0) returns (bool) {
     if(transactions[_txID].approvedBy != 0x0) {revert();} //can't reject an already approved transaction
     transactions[_txID].idx = 0; //0 idx is for rejected transactions. 
     TxReject(_txID, msg.sender);
@@ -119,7 +119,7 @@ contract Multisig {
 
   ////////////////////////////////////////////////////////////////////
   // open functions
-  function stageTx(uint _regIDX, address _rec, uint256 _amtInWei) isRep(_regIDX) returns(uint _txID){
+  function stageTx(uint _regIDX, address _rec, uint256 _amtInWei) isRep(_regIDX) public returns(uint _txID){
     //modifiers: make sure that the rep is authorized, make sure amount is within thier alloance, and we still have that $ in our contract
     if(_amtInWei <= 0) { revert(); } //uint shouldn't be able to be negative but also 0 wei tx are excluded
     _txID = transactions.length;
@@ -134,10 +134,10 @@ contract Multisig {
     TxAdded(transactions[_txID].idx, _regIDX, msg.sender);
     return _txID;
   }
-  function getRegionTag   (uint idx)  constant returns (bytes32)  { return regions[idx].tag;    }
-  function getRegionSpent (uint idx)  constant returns (uint256)  { return regions[idx].spent;  }
-  function getRegionAllowance (uint idx) constant returns (uint256) { return regions[idx].allowance; }
-  function clearTx () isRep(0) constant returns (uint) {
+  function getRegionTag   (uint idx) public constant returns (bytes32)  { return regions[idx].tag;    }
+  function getRegionSpent (uint idx)  public constant returns (uint256)  { return regions[idx].spent;  }
+  function getRegionAllowance (uint idx) public constant returns (uint256) { return regions[idx].allowance; }
+  function clearTx () public isRep(0) returns (uint) {
     uint totalTx = transactions.length;
     delete transactions;  //sets tx = []
     TxCleared(msg.sender, totalTx);
