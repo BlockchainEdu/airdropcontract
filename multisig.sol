@@ -1,4 +1,4 @@
-pragma solidity ^0.4.17;
+pragma solidity ^0.4.15;
 
 contract Multisig {
 
@@ -48,7 +48,7 @@ contract Multisig {
   
 ////Functions
   //Set Creator, Push BENG Chapter to regions, add msg.sender to beng reps
- function Multisig() public {
+  function Multisig() public {
     creator = msg.sender; //set owner to whoever created the contract. used to widraw funds
     regions.push(Region({
       idx : 0,                 //should use regions.length but this is more clear and regions should be [] during initalization
@@ -96,12 +96,14 @@ contract Multisig {
     RegionAdded(msg.sender, regions.length, _tag);
     return _regIDX;
   }
+  //function removeRegion()
   function addRep(uint _regionID, address _localRep) public isRep(0)  returns (bool){
     //only allow adding a local rep if msg.sender is a BENG rep
     regions[_regionID].reps[_localRep] = true;
     RepAdded(msg.sender, _regionID, _localRep);
     return true;
   }
+  //function removeRep()
   function approve(uint _txID) public isRep(0)  returns (bool){
       if(transactions[_txID].idx == 0 && transactions[_txID].approvedBy != 0x0) {revert();}
       transactions[_txID].receiver.transfer(transactions[_txID].amount); //if this fails than the tx should remain pending, so the following code should not execute
