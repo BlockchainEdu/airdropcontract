@@ -4,17 +4,17 @@ contract Multisig {
 
 
   struct MultiTx {
-    uint    idx;
-    uint    regionIDX;    //index region in the regions[] array
+    uint    idx;        //set idx = 0 if rejected
+    uint    regionIDX;  //index region in the regions[] array
+    uint    amount;     //amount in wei to send //can't do eth cause decimal places require floats
     address localrep;   //address of the person that instantiated that transaction
     address receiver;   //address of the person reciving the eth
-    uint    amount;     //amount in wei to send //can't do eth cause decimal places require floats
     address approvedBy; //0x0 if not approved yet, otherwise address of the benG rep that approved the tx 
   }
 
   struct Region {
     uint idx;                      //index of this region in the regions[] array
-    bytes32 tag;                    //string tag for the region. 'chicago', 'uni south florida', etc
+    bytes32 tag;                   //string tag for the region. 'chicago', 'uni south florida', etc
     mapping(address => bool) reps;  //using mapping instead of array for o1 lookup. true if <addr> is a rep, false otherwise 
     uint256 allowance;              //total allowance this region is allowed to spend in wei
     uint256 spent;                  //total amount this region has spent
@@ -32,6 +32,7 @@ contract Multisig {
   event RegionAdded (address indexed _benG, uint indexed _regIDX, bytes32 _tag);
   event RepAdded    (address indexed _benG, uint indexed _regIDX, address _repAddr);
   event TxAdded     (uint indexed _txID, uint indexed _regIDX, address indexed _repAddr);
+  event TxApproved  (uint indexed _txID, uint amount, address indexed receiver, address indexed approvedBy);
   event TxCleared   (address _benG, uint _txClearedCount);
 ////Modifiers
   modifier isRep(uint _regIDX){
@@ -55,6 +56,17 @@ contract Multisig {
       spent     : 0            //ben G spent. benG can initate tx as well as local reps
     }));
     regions[0].reps[msg.sender] = true;      
+    
+    //initalize the tx array with a tx in [0] so all future ids will be 1+
+    //set id to 0 for any tx you want to reject
+    transactions.push(MultiTx({
+      idx: 0,
+      regionIDX: 0,
+      amount: 0,
+      localrep: 0x0,
+      receiver: 0x0,
+      approvedBy: 0x0
+    }));
   }
 
   // Fallback function serves as a deposit function, logs deposit address and amount
@@ -83,16 +95,18 @@ contract Multisig {
     RegionAdded(msg.sender, regions.length, _tag);
     return _regIDX;
   }
-  function addRep(uint _regionID, address _localRep)  isRep(0)  returns (bool success){
+  function addRep(uint _regionID, address _localRep)  isRep(0)  returns (bool){
     //only allow adding a local rep if msg.sender is a BENG rep
     regions[_regionID].reps[_localRep] = true;
     RepAdded(msg.sender, _regionID, _localRep);
     return true;
   }
-  function approveTx(uint _txID)  isRep(0)  returns (bool success){
-    if(transactions[_txID].amount < this.balance){
-
-    }
+  function approve(uint _txID)  isRep(0)  returns (bool success){
+      if(transactions[_txID].idx == 0) {revert();}
+      transactions[_txID].receiver.transfer(transactions[_txID].amount); //if this fails than the tx should remain pending, so the following code should not execute
+      transactions[_txID].approvedBy = msg.sender;
+      TxApproved(_txID, uint transactions[_txID].amount, transactions[_txID].receiver, msg.sender);
+      return true;
   }
   //function rejectTx(uint _txID) isRep(0)  returns (bool success){}
 
@@ -100,7 +114,7 @@ contract Multisig {
   // open functions
   function stageTx(uint _regIDX, address _rec, uint256 _amtInWei) isRep(_regIDX) returns(uint _txID){
     //modifiers: make sure that the rep is authorized, make sure amount is within thier alloance, and we still have that $ in our contract
-
+    if(_amtInWei <= 0) { revert(); } //uint shouldn't be able to be negative but also 0 wei tx are excluded
     _txID = transactions.length;
     transactions.push(MultiTx({
       idx: _txID,
