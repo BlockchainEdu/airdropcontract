@@ -134,6 +134,12 @@ contract Multisig {
     TxReject(_txID, msg.sender);
     return true; //was successful
   }
+  function clearTx () public isRep(0) returns (uint) {
+    uint totalTx = transactions.length;
+    delete transactions;  //sets tx = []
+    TxCleared(msg.sender, totalTx);
+    return transactions.length;
+  }
 
   ////////////////////////////////////////////////////////////////////
   // open functions
@@ -152,13 +158,9 @@ contract Multisig {
     TxAdded(transactions[_txID].idx, _regIDX, msg.sender);
     return _txID;
   }
-  function getRegionTag   (uint idx) public constant returns (bytes32)  { return regions[idx].tag;    }
-  function getRegionSpent (uint idx)  public constant returns (uint256)  { return regions[idx].spent;  }
-  function getRegionAllowance (uint idx) public constant returns (uint256) { return regions[idx].allowance; }
-  function clearTx () public isRep(0) returns (uint) {
-    uint totalTx = transactions.length;
-    delete transactions;  //sets tx = []
-    TxCleared(msg.sender, totalTx);
-    return transactions.length;
-  }
+  function getRegionTag   (uint _idx) public constant returns (bytes32)  { return regions[_idx].tag;    }
+  function getRegionSpent (uint _idx)  public constant returns (uint256)  { return regions[_idx].spent;  }
+  function getRegionAllowance (uint _idx) public constant returns (uint256) { return regions[_idx].allowance; }
+  function getRegionPending( uint _idx) public constant returns (uint256) { return regions[_idx].pending; }
+
 }  
