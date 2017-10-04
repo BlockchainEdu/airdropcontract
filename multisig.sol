@@ -4,12 +4,12 @@ contract Multisig {
 
 
   struct MultiTx {
-    uint    idx;        //set idx = 0 if rejected
+    uint    idx;        //idx in the transactions[] list
     uint    regionIDX;  //index region in the regions[] array
     uint    amount;     //amount in wei to send //can't do eth cause decimal places require floats
     address localrep;   //address of the person that instantiated that transaction
     address receiver;   //address of the person reciving the eth
-    address approvedBy; //0x0 if not approved yet, otherwise address of the benG rep that approved the tx 
+    address decisionBy; //0x0 if not approved yet, otherwise address of the benG rep that approved the tx 
   }
 
   struct Region {
@@ -31,11 +31,12 @@ contract Multisig {
 ////Events
   event Deposit     (address indexed from,  uint value);
   event RegionAdded (address indexed addedBy, uint indexed _regIDX, bytes32 _tag);
-  event RegRemoved  (address indexed removedBy, uint indexed _regIDX);
+  event RegDisabled  (address indexed removedBy, uint indexed _regIDX);
+  event RegEnabled  (address indexed enabledBy, uint indexed _regIDX, uint _newAllowance);
   event RepAdded    (address indexed addedBy, uint indexed _regIDX, address _repAddr);
   event RepRemoved  (address indexed removedBy, uint indexed _regIDX, address _repAddr);
   event TxAdded     (uint indexed _txID, uint indexed _regIDX, address indexed _repAddr);
-  event TxConfirmed  (uint indexed _txID, uint amount, address indexed receiver, address indexed approvedBy);
+  event TxConfirmed  (uint indexed _txID, uint amount, address indexed receiver, address indexed decisionBy);
   event TxReject    (uint indexed _txID, address indexed rejectedBy);
   event TxCleared   (address _benG, uint _txClearedCount);
 ////Modifiers
@@ -44,8 +45,10 @@ contract Multisig {
     _;
   }
   modifier amtAllowed(uint _regIDX, uint _amt){
-    require(_amt > 0);
-    require(_amt > (regions[_regIDX].allowance - (regions[_regIDX].spent + regions[_regIDX].pending) )); //they can't spend more than they are allowed too     
+    if(_regIDX != 0){ //ben global has unlimited allowance
+      require(_amt > 0);
+      require(_amt > (regions[_regIDX].allowance - (regions[_regIDX].spent + regions[_regIDX].pending) )); //they can't spend more than they are allowed too
+    }     
     _;
   }
 
@@ -70,7 +73,7 @@ contract Multisig {
       amount: 0,
       localrep: 0x0,
       receiver: 0x0,
-      approvedBy: 0x0
+      decisionBy: 0x0
     }));
   }
   // Fallback function serves as a deposit function, logs deposit address and amount
@@ -99,10 +102,16 @@ contract Multisig {
     RegionAdded(msg.sender, _regIDX, _tag);
     return _regIDX;
   }
-  function removeRegion(uint _regID) public isRep(0) returns (bool){
-    if(_regID == 0) { return false; } //Cannot remove BEN G region
-    regions[_regID].allowance = 0;  //effecitively disables a region
-    RegRemoved(msg.sender, _regID);
+  function disableRegion(uint _regIDX) public isRep(0) returns (bool){
+    if(_regIDX == 0) { return false; } //Cannot remove BEN G region
+    regions[_regIDX].allowance = regions[_regIDX].spent;  //effecitively disables a region
+    RegDisabled(msg.sender, _regIDX);
+    return true;
+  }
+  function enableRegion(uint _regIDX, uint _newAllowance) public isRep(0) returns (bool){
+    if(_regIDX == 0){ return false; }
+    if(regions[_regIDX].spent > _newAllowance){ return false; } // allowance should be more than the spent, otherwise no new tx can be made
+    RegEnabled(msg.sender, _regIDX, _newAllowance);
     return true;
   }
   function addRep(uint _regionID, address _localRep) public isRep(0)  returns (bool){
@@ -117,9 +126,9 @@ contract Multisig {
     return true;
   }
   function confirm(uint _txID) public isRep(0)  returns (bool){
-      if(transactions[_txID].idx == 0 || transactions[_txID].approvedBy != 0x0) {revert();} //tx[0] is for rejected txs. if approved by is not 0x0 that means someone approved it already
+      if(transactions[_txID].decisionBy != 0x0) {revert();} //tx[0] is for rejected txs. if approved by is not 0x0 that means someone approved it already
       transactions[_txID].receiver.transfer(transactions[_txID].amount); //if this fails than the tx should remain pending, so the following code should not execute
-      transactions[_txID].approvedBy = msg.sender;
+      transactions[_txID].decisionBy = msg.sender;
 
       //move the pending amt from the region's pool to their spent amount
       regions[transactions[_txID].regionIDX].spent += transactions[_txID].amount;
@@ -129,8 +138,8 @@ contract Multisig {
       return true;
   }
   function reject(uint _txID) public isRep(0) returns (bool) {
-    if(transactions[_txID].approvedBy != 0x0) {revert();} //can't reject an already approved transaction
-    transactions[_txID].idx = 0; //0 idx is for rejected transactions. 
+    if(transactions[_txID].decisionBy != 0x0) {revert();} //can't reject an already approved transaction
+    transactions[_txID].decisionBy = msg.sender; 
     TxReject(_txID, msg.sender);
     return true; //was successful
   }
@@ -152,15 +161,15 @@ contract Multisig {
       localrep : msg.sender,
       receiver: _rec,
       amount: _amtInWei,
-      approvedBy: 0x0     //serves as a 'staged' vs 'completed' check
+      decisionBy: 0x0     //serves as a 'staged' vs 'completed' check
     }));
     regions[_regIDX].pending += _amtInWei;
     TxAdded(transactions[_txID].idx, _regIDX, msg.sender);
     return _txID;
   }
-  function getRegionTag   (uint _idx) public constant returns (bytes32)  { return regions[_idx].tag;    }
-  function getRegionSpent (uint _idx)  public constant returns (uint256)  { return regions[_idx].spent;  }
-  function getRegionAllowance (uint _idx) public constant returns (uint256) { return regions[_idx].allowance; }
-  function getRegionPending( uint _idx) public constant returns (uint256) { return regions[_idx].pending; }
+  function getRegionTag   (uint _regIDX) public constant returns (bytes32)  { return regions[_regIDX].tag;    }
+  function getRegionSpent (uint _regIDX)  public constant returns (uint256)  { return regions[_regIDX].spent;  }
+  function getRegionAllowance (uint _regIDX) public constant returns (uint256) { return regions[_regIDX].allowance; }
+  function getRegionPending( uint _regIDX) public constant returns (uint256) { return regions[_regIDX].pending; }
 
 }  

@@ -44,41 +44,73 @@ BENG reps can also reject a TX or clear them all out if theres any leftover ones
 
 <h3 id="api">Contract API</h2>
 
-Structs:
-  Region:
-  MultiTX:
+Structs: 
+  <ul>
+    <li> Region:
+      <ul>
+        <li> uint idx: index of this region in the regions[] array ***not used for anything currently, but useful if reverse mapping
+        <li> bytes32 tag: a string tag for the region. 'BEN Global' for instance. 
+        <li> mapping(address => bool) reps: mapping of addresses to true/false. true if that address is a rep, false otherwise. 
+        <li> uint allowance: the total amount, in WEI, that the region is allowed to spend
+        <li> uint spent: the confirmed total amount the region has spent
+        <li> uint pending: the pending amount in uncofirmed tx's that the region has outstanding. 
+      </ul>
+    <li> MultiTx
+      <ul>
+        <li> uint idx: idx of the tx in transactions[] list. 0 if its a rejected transaction
+        <li> uint regionIDX: the idx of the region in the regions[] array that issued the tx
+        <li> uint amount: the amount in WEI that the tx wants to send out
+        <li> address localrep: the address of the representative that issued the tx
+        <li> address receiver: the address of the receipient of the eth 
+        <li> address approvedBy: the address of the admin representative that confirmed the tx. 0x0 if unconfirmed
+      </ul>
+  </ul>
 
 Variables:
+  <ul>
+    <li> bool isAlive: determines if the contract is accepting funds or not. Cannot kill the contract if theres money still in the contract. So no new funds also means no more transactions that can be done. 
+    <li> address creator: the address of the person who published the contract
+    <li> Region[] regions: the list of regions the contract keeps track off. Regions can be 'removed' by setting their allowance to 0. 
+    <li> MultiTx[] transactions: list of all transactions. Pending, Rejected, and Accepted transactions all live in this list. There's no good way to garbage collect, but if size grows too large, we can use clearTx() function  to clear the list. The logs of all tx still stored, but actual storage space will be freed up.
+  </ul>
+
   bool isAlive: 
   address creator:
   Region[] regions:
   MultiTx[] transactions: 
 
 Modifiers: 
-  isRep(uint _regIDX):
-  amtAllowed(uint _regIDX, uint _amt):
+  <ul>
+    <li>isRep(uint regID): Checks to make sure that the person calling the function is a representative of a given region. Used to provide access control to 'admin' functions such that they are restricted to region 0 (BEN Global). Also used to check that function callers to proposing new tx are allowed to stage that tx (can't make a tx for a different region than the one you belong to)
+    <li>amtAllowed(uint regID, uint amount): checks to make sure that the amount is within the regions' allowance. Reg 0 (BEN G) shortcuts this check as it's allowance is unlimited. 
+  </ul>
 
-Functions:
-  Contract Functions:
-    MultiSig():
-    fallback(): 
-    killContract():
-
-  BEN Global Functions:
-    addRegion():
-    removeRegion():
-    addRep():
-    removeRep():
-    confirm():
-    reject():
-    clearTx():
-
-  Public Functions: 
-    stageTx(): 
-    getRegionTag():
-    getRegionSpent():
-    getRegionAllowance():
-
+  
+Meta Functions:
+<ul>
+  <li> MultiSig(): Contract constructor. Sets the creator address, push ben global as region 0 (admin region), and push the Reject Tx 0 (id=0 used to reject tx). 
+  <li> (): fallback function. payable such that anyone can deposit money into the contract AS LONG AS isAlive is true. 
+  <li> killContract(): checks to make sure all money has been cashed out of the contract and disables the contract from accepting any more money deposits. 
+</ul>
+Admin Functions (only reps from Region 0 (BEN Global) can call these:
+<ul>
+  <li> addRegion(bytes32 tag, uint256 weiAllowance): Adds a new region with a given allowance and tag. 
+  <li> disableRegion(uint regID): disables the given region by setting the allowance to whatever they've already spent. This stops them from being able to stage any new transactions. 
+  <li> enableRegion(uint regID, uint newAllowance): region renabled by setting their new allowance at some value greater than thier already spent $ thus allowing them to continue doing transactions. 
+  <li> addRep(uint regID, address localrep): sets the address of the local rep to be true in region's reps mapping. 
+  <li> removeRep(uint regID, address localrep): sets the address of the local rep to be false in the region's reps mappping
+  <li> confirm(uint _txID): confirms a staged tx and transfers value from the contract to the receiver. 
+  <li> reject(uint _txID): rejects a staged Tx by setting the decisionBy attribute to !0x0 
+  <li> clearTx(): clears the transactions list of all transactions. you can still access logs of them but list is cleared for garbage collecting from storage.
+</ul>
+Public Functions
+<ul>
+  <li>stageTx(uint regID, address receiver, uint amountInWei): any region rep can propose a new tx as long as it's within their region's allowance. 
+  <li>getRegionTag(uint regID): returns the bytes32 representation of the string representation their region 'name' 
+  <li> getRegionSpent(uint regID): returns the amount any region has spent.
+  <li> getRegionAllowance(uint regID): return region total allowance
+  <li> getRegionPending(uint regIDX): return amount in pending transactions for a region
+</ul>
 
 <h2> Future Refactoring </h2>
 <ol>
