@@ -112,6 +112,18 @@ Public Functions
   <li> getRegionPending(uint regIDX): return amount in pending transactions for a region
 </ul>
 
+<h2 id="#events">Events API </h2>
+event Deposit     (address indexed from,  uint value); <br />
+event RegionAdded (address indexed addedBy, uint indexed _regIDX, bytes32 _tag);<br />
+event RegDisabled  (address indexed removedBy, uint indexed _regIDX);<br />
+event RegEnabled  (address indexed enabledBy, uint indexed _regIDX, uint _newAllowance);<br />
+event RepAdded    (address indexed addedBy, uint indexed _regIDX, address _repAddr);<br />
+event RepRemoved  (address indexed removedBy, uint indexed _regIDX, address _repAddr);<br />
+event TxAdded     (uint indexed _txID, uint indexed _regIDX, address indexed _repAddr);<br />
+event TxConfirmed  (uint indexed _txID, uint amount, address indexed receiver, address indexed decisionBy);<br />
+event TxReject    (uint indexed _txID, address indexed rejectedBy);<br />
+event TxCleared   (address _benG, uint _txClearedCount);<br />
+
 <h2> Future Refactoring </h2>
 <ol>
   <li> Allow reps from a given region to add more reps in that region
